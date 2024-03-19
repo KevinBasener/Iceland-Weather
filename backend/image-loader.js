@@ -2,7 +2,7 @@ import axios from "axios";
 import random from "random";
 import pg from "pg";
 import dotenv from "dotenv";
-import fs from "fs";
+import databaseOperations from "./databaseOperations.js";
 
 dotenv.config();
 
@@ -35,23 +35,6 @@ async function fetchData(url) {
     }
 }
 
-async function saveWeatherImages(windImage, temperatureImage, precipitationImage) {
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-        const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation)
-                                 VALUES ($1, $2, $3)`;
-        const res = await client.query(insertImageText, [windImage, temperatureImage, precipitationImage]);
-        await client.query('COMMIT');
-    } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('Error saving image to the database:', error);
-        throw error;
-    } finally {
-        client.release();
-    }
-}
-
 async function getWeatherImage(number, weatherUrlPart) {
     const date = new Date();
     const formattedDate = date.toISOString().slice(2, 10).replace(/-/g, '').slice(0, 6);
@@ -66,7 +49,7 @@ async function getWeatherImage(number, weatherUrlPart) {
 }
 
 async function loadAllWeatherImages() {
-
+    await databaseOperations.init();
     for (let i = 1; i <= 1; i++) {
         console.log(`Fetching image set number: ${i}`);
 
@@ -76,32 +59,14 @@ async function loadAllWeatherImages() {
 
         try {
             if (windImage && temperatureImage && precipitationImage) {
-                await saveWeatherImages(windImage, temperatureImage, precipitationImage);
+                await databaseOperations.saveWeatherImages(windImage, temperatureImage, precipitationImage);
             }
         } catch (error) {
             console.error('Error saving images to the database:', error);
         }
     }
+    await databaseOperations.closeConnection();
 }
 
-async function fetchAndSaveFirstWindImage() {
-    const client = await pool.connect();
-    try {
-        const result = await client.query('SELECT * FROM weather_images ORDER BY image_id ASC LIMIT 1');
-        if (result.rows.length > 0) {
-            const windImage = result.rows[0].wind;
-            const temperatureImage = result.rows[0].temperature;
-            const precipitationImage = result.rows[0].precipitation;
-
-            fs.writeFileSync('windImage.gif', windImage);
-            fs.writeFileSync('temperatureImage.gif', temperatureImage);
-            fs.writeFileSync('precipitationImage.gif', precipitationImage);
-        } else {
-            console.log('No images found in the database.');
-        }
-    } catch (error) {
-        console.error('Error fetching image from the database:', error);
-    } finally {
-        client.release();
-    }
-}
+await loadAllWeatherImages();
+await databaseOperations.getWeatherImage(1, databaseOperations.WeatherTypeImage.Wind);
