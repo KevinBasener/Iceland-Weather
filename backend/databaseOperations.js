@@ -47,14 +47,13 @@ class DatabaseOperations {
             if (this.client) {
                 const query = `SELECT ${imageType}
                                FROM weather_images
-                               WHERE id = $1`;
-                const {rows} = await this.client.query(query, [imageId]);
-                if (rows.length > 0) {
-                    const imageName = `${imageType}Image.gif`;
-                    fs.writeFileSync(imageName, rows[0][imageType]);
-                    console.log(`${imageType} image has been saved as ${imageName}`);
+                               WHERE image_id = $1`;
+                const result = await this.client.query(query, [imageId]);
+                if (result.rows.length > 0) {
+                    return result.rows[0][imageType];
                 } else {
-                    console.log('No image found in the database.');
+                    console.log(`No ${imageType} image found in the database for ID ${imageId}.`);
+                    return null;
                 }
             }
         } catch (error) {

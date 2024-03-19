@@ -3,6 +3,7 @@ import random from "random";
 import pg from "pg";
 import dotenv from "dotenv";
 import databaseOperations from "./databaseOperations.js";
+import fs from "fs";
 
 dotenv.config();
 
@@ -68,5 +69,20 @@ async function loadAllWeatherImages() {
     await databaseOperations.closeConnection();
 }
 
-await loadAllWeatherImages();
-await databaseOperations.getWeatherImage(1, databaseOperations.WeatherTypeImage.Wind);
+async function saveImageToFile(imageId, imageType) {
+    try {
+        await databaseOperations.init();
+        const imageData = await databaseOperations.getWeatherImage(imageId, imageType);
+        if (imageData) {
+            const fileName = `${imageType.toLowerCase()}_image_${imageId}.gif`;
+
+            fs.writeFileSync(fileName, imageData);
+            console.log(`${imageType} image has been saved as ${fileName}`);
+        }
+    } catch (error) {
+        console.error(`Failed to fetch and save ${imageType} image:`, error);
+    }
+    await databaseOperations.closeConnection();
+}
+
+await saveImageToFile(4, 'wind');
