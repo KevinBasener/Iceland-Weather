@@ -4,6 +4,7 @@ import pg from "pg";
 import dotenv from "dotenv";
 import databaseOperations from "./databaseOperations.js";
 import fs from "fs";
+import pkg from 'https-proxy-agent';
 
 dotenv.config();
 
@@ -13,19 +14,15 @@ const WeatherUrlPart = {
     Precipitation: 'thattaspa_igb_island_urk-msl-10uv'
 }
 
-const pool = new pg.Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT
-});
-
 async function fetchData(url) {
+    const proxy_ips = await readProxyIpsFromFile('proxy_ips.txt');
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const proxyIp = proxy_ips[random.int(0, proxy_ips.length - 1)];
+    const httpsAgent = new pkg.HttpsProxyAgent(`http://${proxyIp}`);
 
     const instance = axios.create({
-        responseType: 'arraybuffer'
+        httpsAgent: httpsAgent,
+        responseType: 'arraybuffer',
     });
     try {
         const response = await instance.get(url);
@@ -36,6 +33,19 @@ async function fetchData(url) {
     }
 }
 
+async function readProxyIpsFromFile(filePath) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            const ips = data.split('\n').filter(line => line.trim() !== '');
+            resolve(ips);
+        });
+    });
+}
+
 async function getWeatherImage(number, weatherUrlPart) {
     const date = new Date();
     const formattedDate = date.toISOString().slice(2, 10).replace(/-/g, '').slice(0, 6);
@@ -43,7 +53,6 @@ async function getWeatherImage(number, weatherUrlPart) {
 
     try {
         return await fetchData(imageUrl);
-
     } catch (error) {
         console.error(`An error occurred fetching the image:`, error);
     }
@@ -51,7 +60,7 @@ async function getWeatherImage(number, weatherUrlPart) {
 
 async function loadAllWeatherImages() {
     await databaseOperations.init();
-    for (let i = 1; i <= 1; i++) {
+    for (let i = 1; i <= 186; i++) {
         console.log(`Fetching image set number: ${i}`);
 
         const windImage = await getWeatherImage(i, WeatherUrlPart.Wind);
@@ -69,6 +78,8 @@ async function loadAllWeatherImages() {
     await databaseOperations.closeConnection();
 }
 
+await loadAllWeatherImages();
+
 async function saveImageToFile(imageId, imageType) {
     try {
         await databaseOperations.init();
@@ -84,5 +95,3 @@ async function saveImageToFile(imageId, imageType) {
     }
     await databaseOperations.closeConnection();
 }
-
-await saveImageToFile(4, 'wind');
