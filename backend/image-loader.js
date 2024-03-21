@@ -9,19 +9,15 @@ import pkg from 'https-proxy-agent';
 dotenv.config();
 
 const WeatherUrlPart = {
-    Wind: 'thattaspa_igb_island_10uv',
-    Temperature: 'thattaspa_igb_island_2t',
-    Precipitation: 'thattaspa_igb_island_urk-msl-10uv'
+    Wind: 'thattaspa_ig_island_10uv',
+    Temperature: 'thattaspa_ig_island_2t',
+    Precipitation: 'thattaspa_ig_island_urk-msl-10uv'
 }
 
 async function fetchData(url) {
-    const proxy_ips = await readProxyIpsFromFile('proxy_ips.txt');
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    const proxyIp = proxy_ips[random.int(0, proxy_ips.length - 1)];
-    const httpsAgent = new pkg.HttpsProxyAgent(`http://${proxyIp}`);
 
     const instance = axios.create({
-        httpsAgent: httpsAgent,
         responseType: 'arraybuffer',
     });
     try {
@@ -49,7 +45,7 @@ async function readProxyIpsFromFile(filePath) {
 async function getWeatherImage(number, weatherUrlPart) {
     const date = new Date();
     const formattedDate = date.toISOString().slice(2, 10).replace(/-/g, '').slice(0, 6);
-    const imageUrl = `https://en.vedur.is/photos/${weatherUrlPart}/${formattedDate}_0600_00${number}.gif`;
+    const imageUrl = `https://en.vedur.is/photos/${weatherUrlPart}/${formattedDate}_1200_${pad(number, 3)}.gif`;
 
     try {
         return await fetchData(imageUrl);
@@ -80,18 +76,7 @@ async function loadAllWeatherImages() {
 
 await loadAllWeatherImages();
 
-async function saveImageToFile(imageId, imageType) {
-    try {
-        await databaseOperations.init();
-        const imageData = await databaseOperations.getWeatherImage(imageId, imageType);
-        if (imageData) {
-            const fileName = `${imageType.toLowerCase()}_image_${imageId}.gif`;
-
-            fs.writeFileSync(fileName, imageData);
-            console.log(`${imageType} image has been saved as ${fileName}`);
-        }
-    } catch (error) {
-        console.error(`Failed to fetch and save ${imageType} image:`, error);
-    }
-    await databaseOperations.closeConnection();
+function pad(num, size) {
+    var s = "000" + num;
+    return s.substring(s.length-size);
 }
