@@ -4,14 +4,40 @@ import pg from "pg";
 import dotenv from "dotenv";
 import databaseOperations from "./databaseOperations.js";
 import fs from "fs";
+import puppeteer from "puppeteer";
 import pkg from 'https-proxy-agent';
+import * as cheerio from "cheerio";
 
 dotenv.config();
 
-const WeatherUrlPart = {
-    Wind: 'thattaspa_ig_island_10uv',
-    Temperature: 'thattaspa_ig_island_2t',
-    Precipitation: 'thattaspa_ig_island_urk-msl-10uv'
+let imageUrls = {};
+await buildImagesUrls();
+
+async function getImageSource(targetUrl) {
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+
+    await page.goto(targetUrl, {waitUntil: 'networkidle2'});
+
+    const imgUrl = await page.evaluate((selector) => {
+        const imgElement = document.querySelector(selector);
+        if (imgElement) {
+            return imgElement.src;
+        }
+        return null;
+    }, '#img1');
+
+    await browser.close();
+
+    return imgUrl;
+}
+
+async function buildImagesUrls() {
+    imageUrls = {
+        'Wind': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=wind'),
+        'Temperature': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=temp'),
+        'Precipitation': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=precip')
+    };
 }
 
 async function fetchData(url) {
@@ -31,7 +57,7 @@ async function fetchData(url) {
 
 async function readProxyIpsFromFile(filePath) {
     return new Promise((resolve, reject) => {
-        fs.readFile(filePath, { encoding: 'utf-8' }, (err, data) => {
+        fs.readFile(filePath, {encoding: 'utf-8'}, (err, data) => {
             if (err) {
                 reject(err);
                 return;
@@ -42,13 +68,9 @@ async function readProxyIpsFromFile(filePath) {
     });
 }
 
-async function getWeatherImage(number, weatherUrlPart) {
-    const date = new Date();
-    const formattedDate = date.toISOString().slice(2, 10).replace(/-/g, '').slice(0, 6);
-    const imageUrl = `https://en.vedur.is/photos/${weatherUrlPart}/${formattedDate}_1200_${pad(number, 3)}.gif`;
-
+async function getWeatherImage(number, weatherParam) {
     try {
-        return await fetchData(imageUrl);
+        return await fetchData(imageUrls[weatherParam].slice(0, -7) + zeroPadding(number, 3) + imageUrls[weatherParam].slice(-4));
     } catch (error) {
         console.error(`An error occurred fetching the image:`, error);
     }
@@ -59,9 +81,9 @@ async function loadAllWeatherImages() {
     for (let i = 1; i <= 186; i++) {
         console.log(`Fetching image set number: ${i}`);
 
-        const windImage = await getWeatherImage(i, WeatherUrlPart.Wind);
-        const temperatureImage = await getWeatherImage(i, WeatherUrlPart.Temperature);
-        const precipitationImage = await getWeatherImage(i, WeatherUrlPart.Precipitation);
+        const windImage = await getWeatherImage(i, 'Wind');
+        const temperatureImage = await getWeatherImage(i, 'Temperature');
+        const precipitationImage = await getWeatherImage(i, 'Precipitation');
 
         try {
             if (windImage && temperatureImage && precipitationImage) {
@@ -76,7 +98,7 @@ async function loadAllWeatherImages() {
 
 await loadAllWeatherImages();
 
-function pad(num, size) {
+function zeroPadding(num, size) {
     var s = "000" + num;
-    return s.substring(s.length-size);
+    return s.substring(s.length - size);
 }
