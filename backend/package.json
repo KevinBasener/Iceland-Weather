@@ -18,6 +18,11 @@
     "pg": "^8.11.3",
     "puppeteer-core": "^22.4.1",
     "request-promise": "^4.2.6",
-    "tunnel": "^0.0.6"
+    "tunnel": "^0.0.6",
+    "cheerio": "^1.0.0-rc.12",
+    "express": "^4.18.3",
+    "https-proxy-agent": "^7.0.4",
+    "puppeteer": "^22.6.0",
+    "random": "^4.1.0"
   }
 }
