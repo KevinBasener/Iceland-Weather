@@ -63,7 +63,7 @@ class DatabaseOperations {
 
     async closeConnection() {
         if (this.client) {
-            this.client.release();
+            await this.client.release();
         }
     }
 
