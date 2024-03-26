@@ -64,6 +64,7 @@ class DatabaseOperations {
     async closeConnection() {
         if (this.client) {
             await this.client.release();
+            this.client = null;
         }
     }
 

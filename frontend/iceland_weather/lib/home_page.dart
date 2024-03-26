@@ -39,38 +39,21 @@ class WeatherTabPage extends StatelessWidget {
 
   const WeatherTabPage({Key? key, required this.weatherType}) : super(key: key);
 
-  Future<String> fetchWeatherImageUrl(String type) async {
-    const String imageId = "1";
-    final String apiUrl = 'http://10.0.2.2:8080/images/$type/$imageId';
-    final response = await http.get(Uri.parse(apiUrl));
-
-    if (response.statusCode == 200) {
-      // Assuming the API returns the direct URL to the image
-      return response.body; // You might need to decode JSON depending on your API response
-    } else {
-      throw Exception('Failed to load weather image');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(weatherType)),
-      body: FutureBuilder<String>(
-        future: fetchWeatherImageUrl(weatherType),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done) {
-            if (snapshot.hasData) {
-              return Center(
-                child: Image.network(snapshot.data!),
-              );
-            } else if (snapshot.hasError) {
-              return Text("${snapshot.error}");
-            }
-          }
-          // By default, show a loading spinner.
-          return const CircularProgressIndicator();
-        },
+      body: Container(
+        color: Colors.deepPurple,
+        child: InteractiveViewer(
+          boundaryMargin: const EdgeInsets.all(double.infinity),
+          panEnabled: true,
+          minScale: 1.0,
+          maxScale: 4.0,
+          child: Center(
+            child: Image.network('http://10.0.2.2:8080/images/$weatherType/1'),
+          ),
+        ),
       ),
     );
   }
