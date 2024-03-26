@@ -1,0 +1,3 @@
+backend/.env
+backend/CreateWeatherImage.sql
+backend/proxy_ips.txt
