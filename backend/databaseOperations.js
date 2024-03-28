@@ -1,6 +1,6 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
-import fs from 'fs';
+import { convertToBlurHash, trimImage } from "./image-manipulation.js";
 
 dotenv.config();
 
@@ -31,14 +31,55 @@ class DatabaseOperations {
         try {
             if (this.client) {
                 await this.client.query('BEGIN');
+
+                const trimmedWindImage = await trimImage(windImage, 15, 0, 30, 0);
+                const trimmedTemperatureImage = await trimImage(temperatureImage, 15, 0, 30, 0);
+                const trimmedPrecipitationImage = await trimImage(precipitationImage, 15, 0, 30, 0);
+
                 const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation)
-                                         VALUES ($1, $2, $3)`;
-                await this.client.query(insertImageText, [windImage, temperatureImage, precipitationImage]);
+                                         VALUES ($1, $2, $3) RETURNING image_id`;
+                const insertResult = await this.client.query(insertImageText, [trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage]);
                 await this.client.query('COMMIT');
+
+                await this.encodeAndSaveBlurHashes(trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, insertResult.rows[0].image_id);
             }
         } catch (error) {
             await this.client.query('ROLLBACK');
             console.error('Error saving image to the database:', error);
+        }
+    }
+
+    async encodeAndSaveBlurHashes(windImage, temperatureImage, precipitationImage, imageId) {
+        try {
+            if (this.client) {
+                await this.client.query('BEGIN');
+
+                const windBlurHash = await convertToBlurHash(windImage);
+                const temperatureBlurHash = await convertToBlurHash(temperatureImage);
+                const precipitationBlurHash = await convertToBlurHash(precipitationImage);
+
+                const insertBlurHashText = `INSERT INTO weather_blurhashes(wind, temperature, precipitation, image_id)
+                                            VALUES ($1, $2, $3, $4)`;
+                await this.client.query(insertBlurHashText, [windBlurHash, temperatureBlurHash, precipitationBlurHash, imageId]);
+
+                await this.client.query('COMMIT');
+            }
+        } catch (error) {
+            await this.client.query('ROLLBACK');
+            console.error('Error encoding images to BlurHash or saving to the database:', error);
+        }
+    }
+
+    async getBlurHash(imageId, weatherType) {
+        await this.init();
+
+        const query = `SELECT wind, temperature, precipitation FROM weather_blurhashes WHERE image_id = $1`;
+        const result = await this.client.query(query, [imageId]);
+
+        if (result.rows.length > 0) {
+            return result.rows[0][weatherType];
+        } else {
+            return null;
         }
     }
 
