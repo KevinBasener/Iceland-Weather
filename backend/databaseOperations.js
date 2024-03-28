@@ -32,16 +32,27 @@ class DatabaseOperations {
             if (this.client) {
                 await this.client.query('BEGIN');
 
-                const trimmedWindImage = await trimImage(windImage, 15, 0, 30, 0);
-                const trimmedTemperatureImage = await trimImage(temperatureImage, 15, 0, 30, 0);
-                const trimmedPrecipitationImage = await trimImage(precipitationImage, 15, 0, 30, 0);
+                if(windImage && temperatureImage && precipitationImage){
+                    const trimmedWindImage = await trimImage(windImage, 15, 0, 30, 0);
+                    const trimmedTemperatureImage = await trimImage(temperatureImage, 15, 0, 30, 0);
+                    const trimmedPrecipitationImage = await trimImage(precipitationImage, 15, 0, 30, 0);
 
-                const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation, time)
+                    const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation, time)
                                          VALUES ($1, $2, $3, $4) RETURNING image_id`;
-                const insertResult = await this.client.query(insertImageText, [trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, time]);
-                await this.client.query('COMMIT');
+                    const insertResult = await this.client.query(insertImageText, [trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, time]);
+                    await this.client.query('COMMIT');
 
-                await this.encodeAndSaveBlurHashes(trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, insertResult.rows[0].image_id);
+                    await this.encodeAndSaveBlurHashes(trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, insertResult.rows[0].image_id);
+                } else {
+                    if(time){
+                        const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation, time)
+                                         VALUES ($1, $2, $3, $4)`;
+                        await this.client.query(insertImageText, [null, null, null, time]);
+                        await this.client.query('COMMIT');
+                    }else{
+                        throw new Error('Time could not be extracted from the image source.');
+                    }
+                }
             }
         } catch (error) {
             await this.client.query('ROLLBACK');

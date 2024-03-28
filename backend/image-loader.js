@@ -1,26 +1,20 @@
 import axios from "axios";
 import random from "random";
-import pg from "pg";
 import dotenv from "dotenv";
 import databaseOperations from "./databaseOperations.js";
-import fs from "fs";
 import puppeteer from "puppeteer";
-import pkg from 'https-proxy-agent';
-import * as cheerio from "cheerio";
 
 dotenv.config();
 
-let imageUrls = {
-    'Wind': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=wind'),
-    'Temperature': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=temp'),
-    'Precipitation': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=precip')
-};
-
-let starting_time = extractTime(imageUrls['Wind']);
-
-console.log(starting_time.getHours());
+let imageUrls = await buildUrls();
+let starting_time = extractTime(imageUrls['wind']);
+let currentIndex = 86;
+let haveUrlsChanged = false;
 
 async function getImageSource(targetUrl) {
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    await sleep(random.int(1000, 2000));
+
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
 
@@ -39,6 +33,27 @@ async function getImageSource(targetUrl) {
     return imgUrl;
 }
 
+async function haveUrlsChangedFunc(weatherType){
+    const windImageSource = await getImageSource(`https://en.vedur.is/weather/forecasts/elements/#type=${weatherType}`);
+    console.log('No new URL found.', windImageSource, imageUrls[weatherType]);
+    if(imageUrls[weatherType] === windImageSource){
+        haveUrlsChanged = false;
+        return haveUrlsChanged;
+    }
+    console.log('New URL found:' + await buildUrls());
+    haveUrlsChanged = true;
+    currentIndex -= 1;
+    return await buildUrls();
+}
+
+async function buildUrls(){
+    return {
+        'wind': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=wind'),
+        'temperature': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=temp'),
+        'precipitation': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=precip')
+    };
+}
+
 function extractTime(imageSource) {
     const timeMatch = imageSource.match(/_(\d{2})(\d{2})_/);
 
@@ -55,24 +70,33 @@ function extractTime(imageSource) {
     }
 }
 
-async function fetchData(url) {
+async function fetchData(url, weatherType) {
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     const instance = axios.create({
         responseType: 'arraybuffer',
     });
-    try {
-        const response = await instance.get(url);
-        await sleep(random.int(1000, 2000));
-        return response.data;
-    } catch (error) {
-        console.error('Error fetching data:', error);
+
+    await sleep(random.int(1000, 2000));
+
+    const response = await instance.get(url).catch(async function(error) {
+        if(error.response && error.response.status === 404){
+            const result = await haveUrlsChangedFunc(weatherType);
+            if(result instanceof Object){
+                imageUrls = result;
+            }
+        }
+        return null;
+    });
+    if(response === null){
+        return null;
     }
+    return response.data;
 }
 
-async function getWeatherImage(number, weatherParam) {
+async function getWeatherImage(number, weatherType) {
     try {
-        return await fetchData(imageUrls[weatherParam].slice(0, -7) + zeroPadding(number, 3) + imageUrls[weatherParam].slice(-4));
+        return await fetchData(imageUrls[weatherType].slice(0, -7) + zeroPadding(number, 3) + imageUrls[weatherType].slice(-4), weatherType);
     } catch (error) {
         console.error(`An error occurred fetching the image:`, error);
     }
@@ -81,19 +105,22 @@ async function getWeatherImage(number, weatherParam) {
 async function loadAllWeatherImages() {
     let time = starting_time;
     await databaseOperations.init();
-    for (let i = 1; i <= 186; i++) {
-        console.log(`Fetching image set number: ${i}`);
+    for (currentIndex; currentIndex <= 186; currentIndex++) {
+        console.log(`Fetching image set number: ${currentIndex}`);
 
-        const windImage = await getWeatherImage(i, 'Wind');
-        const temperatureImage = await getWeatherImage(i, 'Temperature');
-        const precipitationImage = await getWeatherImage(i, 'Precipitation');
+        const windImage = await getWeatherImage(currentIndex, 'wind');
+        const temperatureImage = await getWeatherImage(currentIndex, 'temperature');
+        const precipitationImage = await getWeatherImage(currentIndex, 'precipitation');
+
 
         try {
-            if (windImage && temperatureImage && precipitationImage) {
-                await databaseOperations.saveWeatherImages(windImage, temperatureImage, precipitationImage, time);
-                time.setHours(time.getHours() + 1);
-                console.log(time.getHours());
+            if(haveUrlsChanged){
+                haveUrlsChanged = false;
             }
+
+            await databaseOperations.saveWeatherImages(windImage, temperatureImage, precipitationImage, time);
+            time.setHours(time.getHours() + 1);
+
         } catch (error) {
             console.error('Error saving images to the database:', error);
         }
