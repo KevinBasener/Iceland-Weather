@@ -27,7 +27,7 @@ class DatabaseOperations {
         this.client = null;
     }
 
-    async saveWeatherImages(windImage, temperatureImage, precipitationImage) {
+    async saveWeatherImages(windImage, temperatureImage, precipitationImage, time) {
         try {
             if (this.client) {
                 await this.client.query('BEGIN');
@@ -36,9 +36,9 @@ class DatabaseOperations {
                 const trimmedTemperatureImage = await trimImage(temperatureImage, 15, 0, 30, 0);
                 const trimmedPrecipitationImage = await trimImage(precipitationImage, 15, 0, 30, 0);
 
-                const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation)
-                                         VALUES ($1, $2, $3) RETURNING image_id`;
-                const insertResult = await this.client.query(insertImageText, [trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage]);
+                const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation, time)
+                                         VALUES ($1, $2, $3, $4) RETURNING image_id`;
+                const insertResult = await this.client.query(insertImageText, [trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, time]);
                 await this.client.query('COMMIT');
 
                 await this.encodeAndSaveBlurHashes(trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, insertResult.rows[0].image_id);

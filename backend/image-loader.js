@@ -10,8 +10,15 @@ import * as cheerio from "cheerio";
 
 dotenv.config();
 
-let imageUrls = {};
-await buildImagesUrls();
+let imageUrls = {
+    'Wind': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=wind'),
+    'Temperature': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=temp'),
+    'Precipitation': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=precip')
+};
+
+let starting_time = extractTime(imageUrls['Wind']);
+
+console.log(starting_time.getHours());
 
 async function getImageSource(targetUrl) {
     const browser = await puppeteer.launch();
@@ -32,12 +39,20 @@ async function getImageSource(targetUrl) {
     return imgUrl;
 }
 
-async function buildImagesUrls() {
-    imageUrls = {
-        'Wind': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=wind'),
-        'Temperature': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=temp'),
-        'Precipitation': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=precip')
-    };
+function extractTime(imageSource) {
+    const timeMatch = imageSource.match(/_(\d{2})(\d{2})_/);
+
+    if (timeMatch) {
+        const hours = parseInt(timeMatch[1], 10)
+        const minutes = parseInt(timeMatch[2], 10);
+        const dateToday = new Date();
+
+        dateToday.setHours(hours, minutes, 0, 0);
+
+        return dateToday;
+    } else {
+        throw new Error('Time could not be extracted from the image source.');
+    }
 }
 
 async function fetchData(url) {
@@ -55,19 +70,6 @@ async function fetchData(url) {
     }
 }
 
-async function readProxyIpsFromFile(filePath) {
-    return new Promise((resolve, reject) => {
-        fs.readFile(filePath, {encoding: 'utf-8'}, (err, data) => {
-            if (err) {
-                reject(err);
-                return;
-            }
-            const ips = data.split('\n').filter(line => line.trim() !== '');
-            resolve(ips);
-        });
-    });
-}
-
 async function getWeatherImage(number, weatherParam) {
     try {
         return await fetchData(imageUrls[weatherParam].slice(0, -7) + zeroPadding(number, 3) + imageUrls[weatherParam].slice(-4));
@@ -77,6 +79,7 @@ async function getWeatherImage(number, weatherParam) {
 }
 
 async function loadAllWeatherImages() {
+    let time = starting_time;
     await databaseOperations.init();
     for (let i = 1; i <= 186; i++) {
         console.log(`Fetching image set number: ${i}`);
@@ -87,7 +90,9 @@ async function loadAllWeatherImages() {
 
         try {
             if (windImage && temperatureImage && precipitationImage) {
-                await databaseOperations.saveWeatherImages(windImage, temperatureImage, precipitationImage);
+                await databaseOperations.saveWeatherImages(windImage, temperatureImage, precipitationImage, time);
+                time.setHours(time.getHours() + 1);
+                console.log(time.getHours());
             }
         } catch (error) {
             console.error('Error saving images to the database:', error);
