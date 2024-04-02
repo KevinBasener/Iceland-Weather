@@ -1,12 +1,12 @@
 import axios from "axios";
 import random from "random";
-import { DatabaseOperations } from "./databaseOperations.js";
+import {DatabaseOperations} from "./database-operations.js";
 import puppeteer from "puppeteer";
+import {add} from "cheerio/lib/api/traversing.js";
 
 class ImageLoader {
     constructor(weatherType) {
         this.weatherType = weatherType;
-        this.imageUrls = [];
         this.databaseOperations = new DatabaseOperations(weatherType);
     }
 
@@ -28,12 +28,17 @@ class ImageLoader {
     async loadWeatherImageUrls() {
         const browser = await puppeteer.launch({headless: true});
         const page = await browser.newPage();
-
-        await page.goto('https://en.vedur.is/weather/forecasts/elements/#type=$weatherType');
+        let imageUrls = [];
+        const weatherTypeMapping = {
+            'wind': 'wind',
+            'temperature': 'temp',
+            'precipitation': 'precip'
+        }
+        await page.goto(`https://en.vedur.is/weather/forecasts/elements/#type=${weatherTypeMapping[this.weatherType]}`);
 
         page.on('request', async (request) => {
             if (request.url().includes('photos')) {
-                this.imageUrls.push(request.url());
+                imageUrls.push(request.url());
             }
         });
 
@@ -42,13 +47,16 @@ class ImageLoader {
         await browser.close();
         await this.databaseOperations.init();
 
-        for (const imageUrl of this.imageUrls) {
+        console.log(imageUrls);
+
+        /*
+        for (const imageUrl of imageUrls) {
             try {
                 const imageId = this.extractImageId(imageUrl);
                 const image = await this.fetchImage(imageUrl);
                 const time = this.convertTimeToTodayDate(imageUrl);
 
-                if(time){
+                if (time) {
                     time.setHours(time.getHours() + imageId);
                 }
 
@@ -57,6 +65,7 @@ class ImageLoader {
                 console.error('Error while fetching image:', error);
             }
         }
+        */
 
         await this.databaseOperations.closeConnection();
     }
@@ -88,5 +97,10 @@ class ImageLoader {
     }
 }
 
-const imageLoader = new ImageLoader('wind');
-await imageLoader.loadWeatherImageUrls();
+const imageLoader1 = new ImageLoader('wind');
+await imageLoader1.loadWeatherImageUrls();
+const imageLoader2 = new ImageLoader('temperature');
+await imageLoader2.loadWeatherImageUrls();
+const imageLoader3 = new ImageLoader('precipitation');
+await imageLoader3.loadWeatherImageUrls();
+

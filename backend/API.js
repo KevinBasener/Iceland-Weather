@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import databaseOperations from "./databaseOperations.js";
+import { DatabaseOperations } from "./database-operations.js";
 
 dotenv.config();
 
@@ -9,10 +9,10 @@ const port = 8080;
 
 app.get('/blurhash/wind/:id', async (req, res) => {
     const imageId = req.params.id;
-    const weatherType = 'wind';
+    const databaseOperations = new DatabaseOperations('wind');
 
     try {
-        const blurHash = await databaseOperations.getBlurHash(imageId, weatherType);
+        const blurHash = await databaseOperations.getBlurHash(imageId);
 
         if (blurHash) {
             res.json({ blurHash });
@@ -27,10 +27,10 @@ app.get('/blurhash/wind/:id', async (req, res) => {
 
 app.get('/blurhash/temperature/:id', async (req, res) => {
     const imageId = req.params.id;
-    const weatherType = 'temperature';
+    const databaseOperations = new DatabaseOperations('temperature');
 
     try {
-        const blurHash = await databaseOperations.getBlurHash(imageId, weatherType);
+        const blurHash = await databaseOperations.getBlurHash(imageId);
 
         if (blurHash) {
             res.json({ blurHash });
@@ -45,10 +45,10 @@ app.get('/blurhash/temperature/:id', async (req, res) => {
 
 app.get('/blurhash/precipitation/:id', async (req, res) => {
     const imageId = req.params.id;
-    const weatherType = 'precipitation';
+    const databaseOperations = new DatabaseOperations('precipitation');
 
     try {
-        const blurHash = await databaseOperations.getBlurHash(imageId, weatherType);
+        const blurHash = await databaseOperations.getBlurHash(imageId);
 
         if (blurHash) {
             res.json({ blurHash });
@@ -62,9 +62,9 @@ app.get('/blurhash/precipitation/:id', async (req, res) => {
 });
 
 app.get('/image/wind/:id', async (req, res) => {
-    await databaseOperations.init();
+    const databaseOperations = new DatabaseOperations('wind');
     try {
-        const image = await databaseOperations.getWeatherImage(req.params.id, databaseOperations.WeatherTypeImage.Wind);
+        const image = await databaseOperations.getWeatherImage(req.params.id);
         if (image) {
             res.contentType('image/jpeg');
             res.send(image);
@@ -74,13 +74,12 @@ app.get('/image/wind/:id', async (req, res) => {
     } catch (error) {
         res.status(500).send('Server error');
     }
-    await databaseOperations.closeConnection();
 });
 
 app.get('/image/temperature/:id', async (req, res) => {
-    await databaseOperations.init();
+    const databaseOperations = new DatabaseOperations('temperature');
     try {
-        const image = await databaseOperations.getWeatherImage(req.params.id, databaseOperations.WeatherTypeImage.Temperature);
+        const image = await databaseOperations.getWeatherImage(req.params.id);
         if (image) {
             res.contentType('image/jpeg');
             res.send(image);
@@ -90,13 +89,12 @@ app.get('/image/temperature/:id', async (req, res) => {
     } catch (error) {
         res.status(500).send('Server error');
     }
-    await databaseOperations.closeConnection();
 });
 
 app.get('/image/precipitation/:id', async (req, res) => {
-    await databaseOperations.init();
+    const databaseOperations = new DatabaseOperations('precipitation');
     try {
-        const image = await databaseOperations.getWeatherImage(req.params.id, databaseOperations.WeatherTypeImage.Precipitation);
+        const image = await databaseOperations.getWeatherImage(req.params.id);
         if (image) {
             res.contentType('image/jpeg');
             res.send(image);
@@ -106,7 +104,6 @@ app.get('/image/precipitation/:id', async (req, res) => {
     } catch (error) {
         res.status(500).send('Server error');
     }
-    await databaseOperations.closeConnection();
 });
 
 app.listen(port, () => {

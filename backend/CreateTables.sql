@@ -25,20 +25,20 @@ CREATE TABLE precipitation_images
 CREATE TABLE wind_blur_hashes
 (
     id       SERIAL PRIMARY KEY,
-    wind_id  INT REFERENCES wind_images (id),
+    image_id  INT REFERENCES wind_images (id),
     blur_hash VARCHAR NOT NULL
 );
 
 CREATE TABLE temperature_blur_hashes
 (
     id             SERIAL PRIMARY KEY,
-    temperature_id INT REFERENCES temperature_images (id),
+    image_id INT REFERENCES temperature_images (id),
     blur_hash       VARCHAR NOT NULL
 );
 
 CREATE TABLE precipitation_blur_hashes
 (
     id               SERIAL PRIMARY KEY,
-    precipitation_id INT REFERENCES precipitation_images (id),
+    image_id INT REFERENCES precipitation_images (id),
     blur_hash         VARCHAR NOT NULL
 );
