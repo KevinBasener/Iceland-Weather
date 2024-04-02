@@ -28,9 +28,9 @@ export class DatabaseOperations {
                     const trimmedImage = await trimImage(image, 15, 0, 30, 0);
                     const insertImageText = `INSERT INTO ${this.weatherType}_images(image_id, image, time)
                                              VALUES ($1, $2, $3)
-                                             RETURNING id`;
+                                             RETURNING image_id`;
 
-                    const insertResult = await this.client.query(insertImageText, [imageId, trimmedImage, time]);
+                    await this.client.query(insertImageText, [imageId, trimmedImage, time]);
                     await this.client.query('COMMIT');
                     await this.encodeAndSaveBlurHashes(trimmedImage, imageId);
 

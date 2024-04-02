@@ -1,4 +1,3 @@
 .env
-.CreateWeatherImage.sql
-.CreateWeatherBlurHashTable.sql
+.CreateTables.sql
 .docker-compose.yaml
