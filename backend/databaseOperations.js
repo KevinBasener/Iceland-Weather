@@ -4,18 +4,14 @@ import { convertToBlurHash, trimImage } from "./image-manipulation.js";
 
 dotenv.config();
 
-class DatabaseOperations {
+export class DatabaseOperations {
     static instance;
-    WeatherTypeImage = {
-        Wind: 'wind',
-        Temperature: 'temperature',
-        Precipitation: 'precipitation'
-    };
 
-    constructor() {
+    constructor(weatherType) {
         if (DatabaseOperations.instance) {
             return DatabaseOperations.instance;
         }
+
         this.pool = new pg.Pool({
             user: process.env.DB_USER,
             host: process.env.DB_HOST,
@@ -23,35 +19,29 @@ class DatabaseOperations {
             password: process.env.DB_PASSWORD,
             port: process.env.DB_PORT,
         });
+
         DatabaseOperations.instance = this;
         this.client = null;
+        this.weatherType = weatherType;
     }
 
-    async saveWeatherImages(windImage, temperatureImage, precipitationImage, time) {
+    async saveWeatherImage(image, imageId, time) {
         try {
             if (this.client) {
                 await this.client.query('BEGIN');
 
-                if(windImage && temperatureImage && precipitationImage){
-                    const trimmedWindImage = await trimImage(windImage, 15, 0, 30, 0);
-                    const trimmedTemperatureImage = await trimImage(temperatureImage, 15, 0, 30, 0);
-                    const trimmedPrecipitationImage = await trimImage(precipitationImage, 15, 0, 30, 0);
+                if(image && imageId && time){
+                    const trimmedImage = await trimImage(image, 15, 0, 30, 0);
+                    console.log(trimmedImage);
 
-                    const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation, time)
-                                         VALUES ($1, $2, $3, $4) RETURNING image_id`;
-                    const insertResult = await this.client.query(insertImageText, [trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, time]);
+                    const insertImageText = `INSERT INTO ${this.weatherType}_images(image_id, image, time)
+                                         VALUES ($1, $2, $3) RETURNING id`;
+                    const insertResult = await this.client.query(insertImageText, [imageId, trimmedImage, time]);
                     await this.client.query('COMMIT');
 
-                    await this.encodeAndSaveBlurHashes(trimmedWindImage, trimmedTemperatureImage, trimmedPrecipitationImage, insertResult.rows[0].image_id);
+                    await this.encodeAndSaveBlurHashes(trimmedImage, insertResult.rows[0].id);
                 } else {
-                    if(time){
-                        const insertImageText = `INSERT INTO weather_images(wind, temperature, precipitation, time)
-                                         VALUES ($1, $2, $3, $4)`;
-                        await this.client.query(insertImageText, [null, null, null, time]);
-                        await this.client.query('COMMIT');
-                    }else{
-                        throw new Error('Time could not be extracted from the image source.');
-                    }
+                    console.error('$weatherType missing values');
                 }
             }
         } catch (error) {
@@ -60,18 +50,16 @@ class DatabaseOperations {
         }
     }
 
-    async encodeAndSaveBlurHashes(windImage, temperatureImage, precipitationImage, imageId) {
+    async encodeAndSaveBlurHashes(image, imageId) {
         try {
             if (this.client) {
                 await this.client.query('BEGIN');
 
-                const windBlurHash = await convertToBlurHash(windImage);
-                const temperatureBlurHash = await convertToBlurHash(temperatureImage);
-                const precipitationBlurHash = await convertToBlurHash(precipitationImage);
+                const blurHash = await convertToBlurHash(image);
 
-                const insertBlurHashText = `INSERT INTO weather_blurhashes(wind, temperature, precipitation, image_id)
-                                            VALUES ($1, $2, $3, $4)`;
-                await this.client.query(insertBlurHashText, [windBlurHash, temperatureBlurHash, precipitationBlurHash, imageId]);
+                const insertBlurHashText = `INSERT INTO ${this.weatherType}_blur_hashes(${this.weatherType}_id, blur_hash)
+                                            VALUES ($1, $2)`;
+                await this.client.query(insertBlurHashText, [imageId, blurHash]);
 
                 await this.client.query('COMMIT');
             }
@@ -127,7 +115,3 @@ class DatabaseOperations {
         }
     }
 }
-
-const databaseOperations = new DatabaseOperations();
-
-export default databaseOperations;

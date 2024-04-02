@@ -1,136 +1,92 @@
 import axios from "axios";
 import random from "random";
-import dotenv from "dotenv";
-import databaseOperations from "./databaseOperations.js";
+import { DatabaseOperations } from "./databaseOperations.js";
 import puppeteer from "puppeteer";
 
-dotenv.config();
+class ImageLoader {
+    constructor(weatherType) {
+        this.weatherType = weatherType;
+        this.imageUrls = [];
+        this.databaseOperations = new DatabaseOperations(weatherType);
+    }
 
-let imageUrls = await buildUrls();
-let starting_time = extractTime(imageUrls['wind']);
-let currentIndex = 86;
-let haveUrlsChanged = false;
+    convertTimeToTodayDate(url) {
+        const timeMatch = url.match(/_(\d{2})(\d{2})_\d+\.gif$/);
+        if (timeMatch && timeMatch.length > 2) {
+            const hours = parseInt(timeMatch[1], 10);
+            const minutes = parseInt(timeMatch[2], 10);
 
-async function getImageSource(targetUrl) {
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    await sleep(random.int(1000, 2000));
+            const dateToday = new Date();
+            dateToday.setHours(hours, minutes, 0, 0);
 
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-
-    await page.goto(targetUrl, {waitUntil: 'networkidle2'});
-
-    const imgUrl = await page.evaluate((selector) => {
-        const imgElement = document.querySelector(selector);
-        if (imgElement) {
-            return imgElement.src;
+            return dateToday;
+        } else {
+            throw new Error('Time could not be extracted from the URL.');
         }
-        return null;
-    }, '#img1');
-
-    await browser.close();
-
-    return imgUrl;
-}
-
-async function haveUrlsChangedFunc(weatherType){
-    const windImageSource = await getImageSource(`https://en.vedur.is/weather/forecasts/elements/#type=${weatherType}`);
-    console.log('No new URL found.', windImageSource, imageUrls[weatherType]);
-    if(imageUrls[weatherType] === windImageSource){
-        haveUrlsChanged = false;
-        return haveUrlsChanged;
     }
-    console.log('New URL found:' + await buildUrls());
-    haveUrlsChanged = true;
-    currentIndex -= 1;
-    return await buildUrls();
-}
 
-async function buildUrls(){
-    return {
-        'wind': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=wind'),
-        'temperature': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=temp'),
-        'precipitation': await getImageSource('https://en.vedur.is/weather/forecasts/elements/#type=precip')
-    };
-}
+    async loadWeatherImageUrls() {
+        const browser = await puppeteer.launch({headless: true});
+        const page = await browser.newPage();
 
-function extractTime(imageSource) {
-    const timeMatch = imageSource.match(/_(\d{2})(\d{2})_/);
+        await page.goto('https://en.vedur.is/weather/forecasts/elements/#type=$weatherType');
 
-    if (timeMatch) {
-        const hours = parseInt(timeMatch[1], 10)
-        const minutes = parseInt(timeMatch[2], 10);
-        const dateToday = new Date();
+        page.on('request', async (request) => {
+            if (request.url().includes('photos')) {
+                this.imageUrls.push(request.url());
+            }
+        });
 
-        dateToday.setHours(hours, minutes, 0, 0);
+        await page.waitForSelector('#img1_getall');
+        await page.click('#img1_getall');
+        await browser.close();
+        await this.databaseOperations.init();
 
-        return dateToday;
-    } else {
-        throw new Error('Time could not be extracted from the image source.');
-    }
-}
+        for (const imageUrl of this.imageUrls) {
+            try {
+                const imageId = this.extractImageId(imageUrl);
+                const image = await this.fetchImage(imageUrl);
+                const time = this.convertTimeToTodayDate(imageUrl);
 
-async function fetchData(url, weatherType) {
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                if(time){
+                    time.setHours(time.getHours() + imageId);
+                }
 
-    const instance = axios.create({
-        responseType: 'arraybuffer',
-    });
-
-    await sleep(random.int(1000, 2000));
-
-    const response = await instance.get(url).catch(async function(error) {
-        if(error.response && error.response.status === 404){
-            const result = await haveUrlsChangedFunc(weatherType);
-            if(result instanceof Object){
-                imageUrls = result;
+                await this.databaseOperations.saveWeatherImage(image, imageId, time);
+            } catch (error) {
+                console.error('Error while fetching image:', error);
             }
         }
-        return null;
-    });
-    if(response === null){
-        return null;
+
+        await this.databaseOperations.closeConnection();
     }
-    return response.data;
-}
 
-async function getWeatherImage(number, weatherType) {
-    try {
-        return await fetchData(imageUrls[weatherType].slice(0, -7) + zeroPadding(number, 3) + imageUrls[weatherType].slice(-4), weatherType);
-    } catch (error) {
-        console.error(`An error occurred fetching the image:`, error);
-    }
-}
-
-async function loadAllWeatherImages() {
-    let time = starting_time;
-    await databaseOperations.init();
-    for (currentIndex; currentIndex <= 186; currentIndex++) {
-        console.log(`Fetching image set number: ${currentIndex}`);
-
-        const windImage = await getWeatherImage(currentIndex, 'wind');
-        const temperatureImage = await getWeatherImage(currentIndex, 'temperature');
-        const precipitationImage = await getWeatherImage(currentIndex, 'precipitation');
-
-
-        try {
-            if(haveUrlsChanged){
-                haveUrlsChanged = false;
-            }
-
-            await databaseOperations.saveWeatherImages(windImage, temperatureImage, precipitationImage, time);
-            time.setHours(time.getHours() + 1);
-
-        } catch (error) {
-            console.error('Error saving images to the database:', error);
+    extractImageId(url) {
+        const match = url.match(/_(\d+)\.gif$/);
+        if (match && match.length > 1) {
+            return parseInt(match[1], 10); // Convert the captured string to an integer
+        } else {
+            throw new Error('No matching number found in the URL.');
         }
     }
-    await databaseOperations.closeConnection();
+
+    async fetchImage(imageUrl) {
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const instance = axios.create({
+            responseType: 'arraybuffer',
+        });
+
+        await sleep(random.int(1000, 2000));
+
+        const response = await instance.get(imageUrl).catch(async function (error) {
+            if (error.response) {
+                console.log('Error while fetching' + error.response);
+            }
+        });
+
+        return response.data;
+    }
 }
 
-await loadAllWeatherImages();
-
-function zeroPadding(num, size) {
-    var s = "000" + num;
-    return s.substring(s.length - size);
-}
+const imageLoader = new ImageLoader('wind');
+await imageLoader.loadWeatherImageUrls();
