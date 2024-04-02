@@ -2,7 +2,6 @@ import axios from "axios";
 import random from "random";
 import {DatabaseOperations} from "./database-operations.js";
 import puppeteer from "puppeteer";
-import {add} from "cheerio/lib/api/traversing.js";
 
 class ImageLoader {
     constructor(weatherType) {
@@ -47,9 +46,6 @@ class ImageLoader {
         await browser.close();
         await this.databaseOperations.init();
 
-        console.log(imageUrls);
-
-        /*
         for (const imageUrl of imageUrls) {
             try {
                 const imageId = this.extractImageId(imageUrl);
@@ -64,8 +60,7 @@ class ImageLoader {
             } catch (error) {
                 console.error('Error while fetching image:', error);
             }
-        }
-        */
+        };
 
         await this.databaseOperations.closeConnection();
     }
