@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import { DatabaseOperations } from "./database-operations.js";
+import {DatabaseOperations} from "./database-operations.js";
 
 dotenv.config();
 
@@ -15,7 +15,7 @@ app.get('/blurhash/wind/:id', async (req, res) => {
         const blurHash = await databaseOperations.getBlurHash(imageId);
 
         if (blurHash) {
-            res.json({ blurHash });
+            res.json({blurHash});
         } else {
             res.status(404).send('Wind BlurHash not found for the given image ID');
         }
@@ -33,7 +33,7 @@ app.get('/blurhash/temperature/:id', async (req, res) => {
         const blurHash = await databaseOperations.getBlurHash(imageId);
 
         if (blurHash) {
-            res.json({ blurHash });
+            res.json({blurHash});
         } else {
             res.status(404).send('Temperature BlurHash not found for the given image ID');
         }
@@ -51,7 +51,7 @@ app.get('/blurhash/precipitation/:id', async (req, res) => {
         const blurHash = await databaseOperations.getBlurHash(imageId);
 
         if (blurHash) {
-            res.json({ blurHash });
+            res.json({blurHash});
         } else {
             res.status(404).send('Precipitation BlurHash not found for the given image ID');
         }
@@ -102,6 +102,48 @@ app.get('/image/precipitation/:id', async (req, res) => {
             res.status(404).send('Image not found');
         }
     } catch (error) {
+        res.status(500).send('Server error');
+    }
+});
+
+app.get('/time/wind/:id', async (req, res) => {
+    const dataOperations = new DatabaseOperations('wind');
+    try {
+        const time = await dataOperations.getTime(req.params.id);
+        if (time) {
+            res.json({time});
+        } else {
+            res.status(404).send('Time not found');
+        }
+    } catch (e) {
+        res.status(500).send('Server error');
+    }
+});
+
+app.get('/time/temperature/:id', async (req, res) => {
+    const dataOperations = new DatabaseOperations('temperature');
+    try {
+        const time = await dataOperations.getTime(req.params.id);
+        if (time) {
+            res.json({time});
+        } else {
+            res.status(404).send('Time not found');
+        }
+    } catch (e) {
+        res.status(500).send('Server error');
+    }
+});
+
+app.get('/time/precipitation/:id', async (req, res) => {
+    const dataOperations = new DatabaseOperations('precipitation');
+    try {
+        const time = await dataOperations.getTime(req.params.id);
+        if (time) {
+            res.json({time});
+        } else {
+            res.status(404).send('Time not found');
+        }
+    } catch (e) {
         res.status(500).send('Server error');
     }
 });

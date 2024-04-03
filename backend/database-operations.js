@@ -106,6 +106,28 @@ export class DatabaseOperations {
         }
     }
 
+    async getTime(imageId) {
+        try {
+            await this.init();
+            let result;
+            if (this.client) {
+                const query = `SELECT time
+                               FROM ${this.weatherType}_images
+                               WHERE image_id = $1`;
+                result = await this.client.query(query, [imageId]);
+            }
+            await this.closeConnection();
+            if (result.rows.length > 0) {
+                return result.rows[0]['time'];
+            } else {
+                return null;
+            }
+
+        } catch(e) {
+            console.error('Error fetching time from the database:', e);
+        }
+    }
+
     async closeConnection() {
         if (this.client) {
             await this.client.release();

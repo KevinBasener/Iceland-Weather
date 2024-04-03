@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'persistent_bottom_bar_scaffold.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_blurhash/flutter_blurhash.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class HomePage extends StatelessWidget {
   final _tab1navigatorKey = GlobalKey<NavigatorState>();
@@ -49,13 +50,14 @@ class WeatherTabPage extends StatefulWidget {
 }
 
 class _WeatherTabPageState extends State<WeatherTabPage> {
+  bool _isPlaying = false;
   double _currentSliderValue = 1;
   String _lastSuccessfulImageUrl = '';
   String _currentBlurHash = '';
   bool _isFetching = true;
 
   Future<void> updateImage(String weatherType, int imageId) async {
-    final String imageUrl = 'http://localhost:8080/image/$weatherType/$imageId';
+    final String imageUrl = '${dotenv.env['IMAGE_BASE_URL']}/$weatherType/$imageId';
 
     try {
       final http.Response response = await http.get(Uri.parse(imageUrl));
@@ -78,7 +80,7 @@ class _WeatherTabPageState extends State<WeatherTabPage> {
       String weatherType, int imageId, bool useLastSuccessfulImageUrl) async {
     final String url = useLastSuccessfulImageUrl
         ? _lastSuccessfulImageUrl
-        : 'http://localhost:8080/blurhash/$weatherType/$imageId';
+        : '${dotenv.env['BLURHASH_BASE_URL']}/$weatherType/$imageId';
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
@@ -130,7 +132,7 @@ class _WeatherTabPageState extends State<WeatherTabPage> {
           maxScale: 4.0,
           child: Center(
             child: Image.network(
-              'http://localhost:8080/image/${widget.weatherType}/${_currentSliderValue.toInt()}',
+              '${dotenv.env['IMAGE_BASE_URL']}/${widget.weatherType}/${_currentSliderValue.toInt()}',
               errorBuilder: (context, error, stackTrace) {
                 return Image.network(_lastSuccessfulImageUrl);
               },
@@ -142,45 +144,59 @@ class _WeatherTabPageState extends State<WeatherTabPage> {
         bottom: 50,
         left: 0,
         right: 0,
-        child: SfSlider(
-          min: 1,
-          max: 167,
-          value: _currentSliderValue,
-          interval: 1,
-          showTicks: false,
-          showLabels: true,
-          enableTooltip: true,
-          minorTicksPerInterval: 0,
-          dateFormat: DateFormat('EEE h a'),
-          dateIntervalType: DateIntervalType.hours,
-          labelPlacement: LabelPlacement.onTicks,
-          onChanged: (dynamic value) {
-            setState(() {
-              _currentSliderValue = value;
-            });
-          },
-          onChangeEnd: (dynamic value) {
-            setState(() {
-              _isFetching = true;
-              updateBlurHash(
-                  widget.weatherType, _currentSliderValue.toInt(), false);
-            });
-          },
-          labelFormatterCallback: (actualValue, formattedText) {
-            DateTime time = DateTime(2024, 3, 28, 7)
-                .add(Duration(hours: actualValue.toInt()));
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton(
+            icon: _isPlaying
+                ? const Icon(Icons.pause, color: Colors.indigo)
+                : const Icon(Icons.play_arrow, color: Colors.indigo),
+            onPressed: () {
+              setState(() {
+                _isPlaying = !_isPlaying;
+              });
+            },
+          ),
+          Expanded(
+            child: SfSlider(
+              min: 1,
+              max: 167,
+              value: _currentSliderValue,
+              interval: 1,
+              showTicks: false,
+              showLabels: true,
+              enableTooltip: true,
+              minorTicksPerInterval: 0,
+              dateFormat: DateFormat('EEE h a'),
+              dateIntervalType: DateIntervalType.hours,
+              labelPlacement: LabelPlacement.onTicks,
+              onChanged: (dynamic value) {
+                setState(() {
+                  _currentSliderValue = value;
+                });
+              },
+              onChangeEnd: (dynamic value) {
+                setState(() {
+                  _isFetching = true;
+                  updateBlurHash(
+                      widget.weatherType, _currentSliderValue.toInt(), false);
+                });
+              },
+              labelFormatterCallback: (actualValue, formattedText) {
+                DateTime time = DateTime(2024, 3, 28, 7)
+                    .add(Duration(hours: actualValue.toInt()));
 
-            if (time.hour == 0) {
-              return DateFormat('EEE').format(time);
-            }
-            return '';
-          },
-          tooltipTextFormatterCallback: (actualValue, formattedText) {
-            DateTime time = DateTime(2024, 3, 28, 7)
-                .add(Duration(hours: actualValue.toInt()));
-            return DateFormat('EEE h a').format(time);
-          },
-        ),
+                if (time.hour == 0) {
+                  return DateFormat('EEE').format(time);
+                }
+                return '';
+              },
+              tooltipTextFormatterCallback: (actualValue, formattedText) {
+                DateTime time = DateTime(2024, 3, 28, 7)
+                    .add(Duration(hours: actualValue.toInt()));
+                return DateFormat('EEE h a').format(time);
+              },
+            ),
+          ),
+        ]),
       ),
     ]));
   }
