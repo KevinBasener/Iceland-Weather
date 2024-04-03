@@ -50,11 +50,35 @@ class WeatherTabPage extends StatefulWidget {
 
 class _WeatherTabPageState extends State<WeatherTabPage> {
   double _currentSliderValue = 1;
+  String _lastSuccessfulImageUrl = '';
   String _currentBlurHash = '';
   bool _isFetching = true;
 
-  Future<void> updateBlurHash(String weatherType, int imageId) async {
-    final url = 'http://localhost:8080/blurhash/$weatherType/$imageId';
+  Future<void> updateImage(String weatherType, int imageId) async {
+    final String imageUrl = 'http://localhost:8080/image/$weatherType/$imageId';
+
+    try {
+      final http.Response response = await http.get(Uri.parse(imageUrl));
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _lastSuccessfulImageUrl = imageUrl;
+        });
+        await updateBlurHash(weatherType, imageId, false);
+      } else {
+        await updateBlurHash(weatherType, imageId, true);
+      }
+    } catch (e) {
+      print('Error fetching image: $e');
+      await updateBlurHash(weatherType, imageId, true);
+    }
+  }
+
+  Future<void> updateBlurHash(
+      String weatherType, int imageId, bool useLastSuccessfulImageUrl) async {
+    final String url = useLastSuccessfulImageUrl
+        ? _lastSuccessfulImageUrl
+        : 'http://localhost:8080/blurhash/$weatherType/$imageId';
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
@@ -76,23 +100,10 @@ class _WeatherTabPageState extends State<WeatherTabPage> {
     }
   }
 
-  Future<String> fetchBlurHash(String weatherType) async {
-    final url =
-        'http://localhost:8080/blurhash/$weatherType/$_currentSliderValue';
-    final response = await http.get(Uri.parse(url));
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = json.decode(response.body);
-      return data['blurHash'];
-    } else {
-      throw Exception('Failed to load blur hash');
-    }
-  }
-
   @override
   void initState() {
     super.initState();
-    updateBlurHash(widget.weatherType, _currentSliderValue.toInt());
+    updateImage(widget.weatherType, _currentSliderValue.toInt());
   }
 
   @override
@@ -121,7 +132,7 @@ class _WeatherTabPageState extends State<WeatherTabPage> {
             child: Image.network(
               'http://localhost:8080/image/${widget.weatherType}/${_currentSliderValue.toInt()}',
               errorBuilder: (context, error, stackTrace) {
-                return Text(error.toString());
+                return Image.network(_lastSuccessfulImageUrl);
               },
             ),
           ),
@@ -151,14 +162,15 @@ class _WeatherTabPageState extends State<WeatherTabPage> {
           onChangeEnd: (dynamic value) {
             setState(() {
               _isFetching = true;
-              updateBlurHash(widget.weatherType, _currentSliderValue.toInt());
+              updateBlurHash(
+                  widget.weatherType, _currentSliderValue.toInt(), false);
             });
           },
           labelFormatterCallback: (actualValue, formattedText) {
             DateTime time = DateTime(2024, 3, 28, 7)
                 .add(Duration(hours: actualValue.toInt()));
 
-            if(time.hour == 0){
+            if (time.hour == 0) {
               return DateFormat('EEE').format(time);
             }
             return '';
